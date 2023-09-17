@@ -15,6 +15,20 @@ class FPLQuerier:
     teams = {}
     data = {}
 
+    @staticmethod
+    def get_team_difficulty(team_code: str):
+        team_code = team_code.upper()
+        if team_code == "LUT":
+            return 1
+        elif team_code in ("ARS", "LIV", "MCI"):
+            return 5
+        elif team_code in ("NEW", "BHA", "BRE", "AVL", "CHE", "TOT"):
+            return 4
+        elif team_code in ("BUR", "SHE", "WOL", "EVE", "BOU"):
+            return 2
+        else:
+            return 3
+
     def refresh(self):
         """
         Refreshes data
@@ -25,7 +39,7 @@ class FPLQuerier:
         for team in self.data.get("teams", []):
             self.teams[team["id"]] = {
                 "name": team["name"],
-                "strength": team["strength"],
+                "strength": FPLQuerier.get_team_difficulty(team["short_name"]),
                 "code": team["short_name"],
                 "fixtures": [],
                 "goals_scored": 0,
@@ -51,16 +65,16 @@ class FPLQuerier:
         self.fixtures = list(filter(lambda x: not x["started"], self.fixtures))
         for fixture in self.fixtures:
             team_a = fixture.get("team_a", None)
-            team_a_diff = fixture.get("team_a_difficulty", None)
+            team_a_str = self.teams[team_a]["strength"]
             team_h = fixture.get("team_h", None)
-            team_h_diff = fixture.get("team_h_difficulty", None)
+            team_h_str = self.teams[team_h]["strength"]
             gw = fixture["event"]
             if team_a in self.teams:
                 self.teams[team_a]["fixtures"].append(
                     {
                         "team": team_h,
                         "code": self.teams[team_h]["code"],
-                        "difficulty": team_a_diff,
+                        "difficulty": team_h_str,
                         "gw": gw,
                     }
                 )
@@ -69,7 +83,7 @@ class FPLQuerier:
                     {
                         "team": team_a,
                         "code": self.teams[team_a]["code"],
-                        "difficulty": team_h_diff,
+                        "difficulty": team_a_str,
                         "gw": gw,
                     }
                 )
@@ -100,8 +114,15 @@ class FPLQuerier:
             self.players[player_name]["stats"]["fixture_score"] = round(
                 fixture_score / float(count), 2
             )
+            team_games = float(team["games"])
             self.players[player_name]["stats"]["minutes_per_game"] = (
-                player["minutes"] / float(team["games"]) if team["games"] > 0 else 0
+                player["minutes"] / team_games if team_games > 0 else 0
+            )
+            self.players[player_name]["stats"]["bonus_per_game"] = (
+                player["bonus"] / team_games if team_games > 0 else 0
+            )
+            self.players[player_name]["stats"]["starts_per_game"] = (
+                player["starts"] / team_games if team_games > 0 else 0
             )
 
     def __init__(self):

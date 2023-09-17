@@ -34,6 +34,7 @@ def generate_top_players(fpl: FPLQuerier):
         "Position",
         "Price",
         "Points",
+        "Bonus/Game",
         "Goals",
         "xG",
         "Assists",
@@ -45,6 +46,7 @@ def generate_top_players(fpl: FPLQuerier):
         "Minutes",
         "Form",
         "Minutes/Game",
+        "Starts/Game",
     ]
     # TODO: Filter on easy fixtures
     for player, info in fpl.players.items():
@@ -56,6 +58,7 @@ def generate_top_players(fpl: FPLQuerier):
                 info["position"],
                 round(info["stats"]["now_cost"] / 10.0, 2),
                 info["stats"]["total_points"],
+                round(float(info["stats"]["bonus_per_game"]), 2),
                 info["stats"]["goals_scored"],
                 info["stats"]["expected_goals"],
                 info["stats"]["assists"],
@@ -67,6 +70,7 @@ def generate_top_players(fpl: FPLQuerier):
                 info["stats"]["minutes"],
                 float(info["stats"]["points_per_game"]),
                 float(info["stats"]["minutes_per_game"]),
+                float(info["stats"]["starts_per_game"]),
             ]
         )
     df = pd.DataFrame(results, columns=columns).sort_values(by=["Name"], ascending=True)
@@ -75,28 +79,23 @@ def generate_top_players(fpl: FPLQuerier):
     )
     col1, col2 = st.columns(2)
     selected_price = col1.slider("Select price range", 3.5, 14.5, (3.5, 14.5), step=0.5)
-    selected_team_gi = col2.slider("Select min team GI", 0.0, 1.0, step=0.1)
+    selected_team_gi = col2.slider("Minimum team GI", 0.0, 1.0, step=0.1)
     col1, col2 = st.columns(2)
-    filter_minutes = col1.checkbox("Filter Minutes/Game", value=False)
-    selected_minutes = (
-        col2.slider("Select min/game", 0, 90, step=5, value=70) if filter_minutes else 0
-    )
+    selected_minutes = col1.slider("Minimum min/game", 0, 90, step=5, value=80)
+    selected_bonus = col2.slider("Minimum bonus/game", 0.0, 3.0, step=0.1)
     df = df[
         df["Position"].isin(selected_pos)
         & df["Price"].between(selected_price[0], selected_price[1])
         & df["Team GI"].between(selected_team_gi, 1.0)
         & df["Minutes/Game"].between(selected_minutes, 90)
+        & df["Bonus/Game"].between(selected_bonus, 3.0)
     ]
     unavailable = ["Name"]
     available = sorted(list(set(df.columns) - set(unavailable)))
     selected_columns = st.multiselect("Select columns", available, default=available)
-    hide_columns = st.checkbox("Hide selected columns", value=False)
-    if hide_columns:
-        filtered_df = df.drop(columns=selected_columns)
-    else:
-        filtered_df = df.drop(
-            columns=list(set(df.columns) - set(selected_columns + unavailable))
-        )
+    filtered_df = df.drop(
+        columns=list(set(df.columns) - set(selected_columns + unavailable))
+    )
     st.dataframe(filtered_df, width=1500, height=500)
 
 
@@ -255,7 +254,7 @@ def generate_player_charts(fpl: FPLQuerier, player=None, player_comp=None):
 
 def main():
     # Initialize querier
-    st.title("FPyL")
+    st.title("FantaPy Premier League \U0001F3C6")
     fpl = FPLQuerier()
     clicked = st.button("Refresh")
     if clicked:
