@@ -157,8 +157,8 @@ def generate_fixture_for_player(fpl: FPLQuerier, player=None):
         delta_color="inverse",
     )
     cole.metric(
-        label=f"GW{upcoming_gws[4]}",
-        value=f"{fixtures[upcoming_gws[4]]['code']} {fixtures[upcoming_gws[4]]['where']}",
+        label=f"GW{upcoming_gws[4]}, {'Home' if fixtures[upcoming_gws[4]]['where'] == 'H' else 'Away'}",
+        value=fixtures[upcoming_gws[4]]["code"],
         delta=fixtures[upcoming_gws[4]]["difficulty"] - team_strength,
         delta_color="inverse",
     )
