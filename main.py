@@ -39,14 +39,16 @@ def generate_top_players(fpl: FPLQuerier):
         "xG",
         "Assists",
         "xA",
+        "GI",
+        "xGI",
         "Team Goals",
         "Team GI %",
         "Fixture Score",
         "ICT",
         "Minutes",
+        "Minutes/Game",
         "Form",
         "Form/Cost",
-        "Minutes/Game",
         "Starts/Game",
     ]
     # TODO: Filter on easy fixtures
@@ -63,20 +65,24 @@ def generate_top_players(fpl: FPLQuerier):
             info["stats"]["expected_goals"],
             info["stats"]["assists"],
             info["stats"]["expected_assists"],
+            info["stats"]["goals_scored"] + info["stats"]["assists"],
+            info["stats"]["expected_goal_involvements"],
             info["team"]["goals_scored"],
             round(100 * info["stats"]["gi_per_goal_scored"], 1),
             info["stats"]["fixture_score"],
             round(float(info["stats"]["ict_index"]), 2),
             info["stats"]["minutes"],
+            float(info["stats"]["minutes_per_game"]),
             float(info["stats"]["points_per_game"]),  # form
             float(info["stats"]["form_per_cost"]),  # form
-            float(info["stats"]["minutes_per_game"]),
             float(info["stats"]["starts_per_game"]),
         ]
         results.append(values)
     st.write(f"Total players: {len(results)}")
     df = pd.DataFrame(results, columns=columns).sort_values(by=["Name"], ascending=True)
-    selected_pos = st.multiselect("Select positions", ["GK", "DEF", "MID", "FWD"])
+    selected_pos = st.multiselect(
+        "Select positions", ["GK", "DEF", "MID", "FWD"], ["GK", "DEF", "MID", "FWD"]
+    )
     col1, col2 = st.columns(2)
     selected_price = col1.slider("Select price range", 3.5, 14.5, (3.5, 14.5), step=0.5)
     selected_team_gi = col2.slider(
@@ -89,6 +95,16 @@ def generate_top_players(fpl: FPLQuerier):
     col1, col2 = st.columns(2)
     selected_minutes = col1.slider("Minimum min/game", 0, 90, step=5, value=80)
     selected_bonus = col2.slider("Minimum bonus/game", 0.0, 3.0, step=0.1)
+    # st.write(f"Players matching criteria: {len(df)}")
+    # df = df[df["Position"].isin(selected_pos)]
+    # st.write(f"Players matching POSITION criteria: {len(df)}")
+    # df = df[df["Price"].between(selected_price[0], selected_price[1])]
+    # st.write(f"Players matching PRICE criteria: {len(df)}")
+    # df = df[df["Team GI %"].between(selected_team_gi, 100)]
+    # st.write(f"Players matching TEAM GI criteria: {len(df)}")
+    # df = df[df["Minutes/Game"].between(selected_minutes, 90)]
+    # st.write(f"Players matching MINUTES criteria: {len(df)}")
+    # df = df[df["Bonus/Game"].between(selected_bonus, 3.0)]
     df = df[
         df["Position"].isin(selected_pos)
         & df["Price"].between(selected_price[0], selected_price[1])
