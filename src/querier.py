@@ -1,6 +1,5 @@
-import requests
+import requests, streamlit as st
 from pprint import pprint
-import re
 
 
 class FPLQuerier:
@@ -11,6 +10,7 @@ class FPLQuerier:
     FPL_ELEMENT_SUMMARY_URL = (
         "https://fantasy.premierleague.com/api/element-summary/{}/"
     )
+    FPL_GW_LIVE_URL = "https://fantasy.premierleague.com/api/event/{}/live/"
 
     teams = {}
     teams_by_name = {}
@@ -30,15 +30,88 @@ class FPLQuerier:
         else:
             return 3
 
-    def refresh(self):
+    @staticmethod
+    def get_players(data, teams):
         """
-        Refreshes data
+        TODO: Run the querier and cache the results
+              - Should run EACH gameweek and parse all the data
+        returns: curr_gw, players
         """
-        self.data = requests.get(FPLQuerier.FPL_GENERAL_URL).json()
-        self.teams, self.players, self.player_stats = {}, {}, {}
-        self.fixtures = requests.get(FPLQuerier.FPL_FIXTURES_URL).json()
-        for team in self.data.get("teams", []):
-            self.teams[team["id"]] = {
+        curr_gw, players, players_by_name = 0, {}, {}
+        for player in data.get("elements", []):
+            id = player["id"]
+            team = teams.get(player["team"], {})
+            player_name = player["web_name"]
+            player["gi_per_goal_scored"] = (
+                float(player["goals_scored"] + player["assists"]) / team["goals_scored"]
+            )
+            players[id] = {
+                "id": id,
+                "name": player_name,
+                "team": team,
+                "position": "GK"
+                if player["element_type"] == 1
+                else (
+                    "DEF"
+                    if player["element_type"] == 2
+                    else ("MID" if player["element_type"] == 3 else "FWD")
+                ),
+                "stats": player,
+            }
+            name = f"{player_name} ({team['code']})"
+            players_by_name[name] = players[id]
+        for gw in range(1, 39):
+            data = requests.get(FPLQuerier.FPL_GW_LIVE_URL.format(gw)).json()
+            if data is None or len(data.get("elements", [])) == 0:
+                curr_gw = gw
+                break
+            for player in data["elements"]:
+                pid = player["id"]
+                for k, v in player["stats"].items():
+                    if type(v) == str:
+                        try:
+                            player["stats"][k] = round(float(v), 3)
+                        except ValueError:
+                            player["stats"][k] = 0
+                if pid not in players:
+                    raise Exception(f"Player {pid} not found")
+                if "history" not in players[pid]:
+                    players[pid]["history"] = {}
+                pdict = players[pid]
+                stats = pdict["stats"]
+                pdict["history"][gw] = player["stats"]
+                stats["games_played"] = stats.get("games_played", 0) + 1
+                stats["games_w_bonus"] = stats.get("games_w_bonus", 0) + (
+                    1 if player["stats"]["bonus"] > 0 else 0
+                )
+                stats["games_started"] = stats.get("games_started", 0) + (
+                    1 if player["stats"]["starts"] > 0 else 0
+                )
+        for player in players.values():
+            stats = player["stats"]
+            games_played = stats["games_played"]
+            stats["minutes_per_game"] = (
+                stats["minutes"] / games_played if games_played > 0 else 0
+            )
+            stats["bonus_per_game"] = (
+                stats["bonus"] / games_played if games_played > 0 else 0
+            )
+            stats["bonus_chance"] = (
+                stats["games_w_bonus"] / games_played if games_played > 0 else 0
+            )
+            stats["starts_per_game"] = (
+                stats["starts"] / games_played if games_played > 0 else 0
+            )
+            stats["form_per_cost"] = (
+                10 * float(stats["points_per_game"]) / stats["now_cost"]
+            )
+        return curr_gw, players, players_by_name
+
+    @staticmethod
+    def get_teams(data):
+        teams, teams_by_name = {}, {}
+        for team in data.get("teams", []):
+            teams[team["id"]] = {
                 "id": team["id"],
                 "name": team["name"],
                 "strength": FPLQuerier.get_team_difficulty(team["short_name"]),
@@ -49,8 +122,9 @@ class FPLQuerier:
                 "games": 0,
                 "matchups": {},
             }
-            self.teams_by_name[team["name"]] = self.teams[team["id"]]
-        for fixture in self.fixtures:
+            teams_by_name[team["name"]] = teams[team["id"]]
+        fixtures = requests.get(FPLQuerier.FPL_FIXTURES_URL).json()
+        for fixture in fixtures:
             if fixture.get("event", None) is None:
                 continue
             if fixture["started"] is not True and fixture["finished"] is not True:
@@ -58,39 +132,39 @@ class FPLQuerier:
             team_a = fixture.get("team_a", None)
             team_h = fixture.get("team_h", None)
             gw = fixture["event"]
-            if team_a in self.teams:
-                self.teams[team_a]["goals_scored"] += fixture["team_a_score"]
-                self.teams[team_a]["goals_conceded"] += fixture["team_h_score"]
-                self.teams[team_a]["games"] += 1
-            if team_h in self.teams:
-                self.teams[team_h]["goals_scored"] += fixture["team_h_score"]
-                self.teams[team_h]["goals_conceded"] += fixture["team_a_score"]
-                self.teams[team_h]["games"] += 1
-        self.fixtures = list(filter(lambda x: not x["started"], self.fixtures))
-        for fixture in self.fixtures:
+            if team_a in teams:
+                teams[team_a]["goals_scored"] += fixture["team_a_score"]
+                teams[team_a]["goals_conceded"] += fixture["team_h_score"]
+                teams[team_a]["games"] += 1
+            if team_h in teams:
+                teams[team_h]["goals_scored"] += fixture["team_h_score"]
+                teams[team_h]["goals_conceded"] += fixture["team_a_score"]
+                teams[team_h]["games"] += 1
+        fixtures = list(filter(lambda x: not x["started"], fixtures))
+        for fixture in fixtures:
             gw = fixture["event"]
             if gw is None:
                 continue
             team_a = fixture.get("team_a", None)
-            team_a_str = self.teams[team_a]["strength"]
+            team_a_str = teams[team_a]["strength"]
             team_h = fixture.get("team_h", None)
-            team_h_str = self.teams[team_h]["strength"]
-            if team_a in self.teams:
-                self.teams[team_a]["fixtures"][gw] = {
+            team_h_str = teams[team_h]["strength"]
+            if team_a in teams:
+                teams[team_a]["fixtures"][gw] = {
                     "team": team_h,
-                    "code": self.teams[team_h]["code"],
+                    "code": teams[team_h]["code"],
                     "difficulty": team_h_str,
                     "where": "A",
                 }
-            if team_h in self.teams:
-                self.teams[team_h]["fixtures"][gw] = {
+            if team_h in teams:
+                teams[team_h]["fixtures"][gw] = {
                     "team": team_a,
-                    "code": self.teams[team_a]["code"],
+                    "code": teams[team_a]["code"],
                     "where": "H",
                     "difficulty": team_a_str,
                 }
         # Generate fixture score
-        for team in self.teams.values():
+        for team in teams.values():
             count = fixture_score = 0
             factor = 5
             for fixture in team["fixtures"].values():
@@ -99,7 +173,7 @@ class FPLQuerier:
                 if (count := count + 1) >= 5:
                     break
             team["fixture_score"] = round(fixture_score / float(25 + 15 + 5 + 5 + 5), 2)
-            for other in self.teams.values():
+            for other in teams.values():
                 if other["id"] in team["matchups"]:
                     continue
                 if other["name"] == team["name"]:
@@ -131,111 +205,15 @@ class FPLQuerier:
                     "score": score,
                     "overlapping": overlapping,
                 }
-        print(f"Loaded {len(self.data.get('elements', []))} players")
-        for player in self.data.get("elements", []):
-            id = player["id"]
-            team = self.teams.get(player["team"], {})
-            player_name = f"{player['web_name']} ({team['code']})"
-            player["gi_per_goal_scored"] = (
-                float(player["goals_scored"] + player["assists"]) / team["goals_scored"]
-            )
-            self.players[player_name] = {
-                "id": id,
-                "team": team,
-                "position": "GK"
-                if player["element_type"] == 1
-                else (
-                    "DEF"
-                    if player["element_type"] == 2
-                    else ("MID" if player["element_type"] == 3 else "FWD")
-                ),
-                "stats": player,
-            }
-            team_games = float(team["games"])
-            self.players[player_name]["stats"]["minutes_per_game"] = (
-                player["minutes"] / team_games if team_games > 0 else 0
-            )
-            self.players[player_name]["stats"]["bonus_per_game"] = (
-                player["bonus"] / team_games if team_games > 0 else 0
-            )
-            self.players[player_name]["stats"]["starts_per_game"] = (
-                player["starts"] / team_games if team_games > 0 else 0
-            )
-            self.players[player_name]["stats"]["form_per_cost"] = (
-                10 * float(player["points_per_game"]) / player["now_cost"]
-            )
+        return teams, teams_by_name
 
-    def __init__(self):
+    @staticmethod
+    @st.cache_data
+    def run(placeholder=0):
         """
-        Constructor for FPLQuerier class
+        placeholder for streamlit caching
         """
-        self.refresh()
-
-    def query_player_kpi(self, player: str):
-        """
-        Query KPI data for a player
-        """
-        player_id = self.players[player]["id"]
-        data = requests.get(FPLQuerier.FPL_ELEMENT_SUMMARY_URL.format(player_id)).json()
-        history = []
-        bonus_received = minutes = matches = 0
-        for gw in data["history"]:
-            round, pts, bpts, cost = (
-                gw["round"],
-                gw["total_points"],
-                gw["bonus"],
-                gw["value"],
-            )
-            xg, xa, xgi, xgc = (
-                float(gw["expected_goals"]),
-                float(gw["expected_assists"]),
-                float(gw["expected_goal_involvements"]),
-                float(gw["expected_goals_conceded"]),
-            )
-            goals, assists = gw["goals_scored"], gw["assists"]
-            gi = goals + assists
-            # TODO: Get opponent
-            opponent = self.teams.get(gw["opponent_team"], {}).get("name", "Unknown")
-            minutes += gw["minutes"]
-            matches += 1
-            # form = gw['form']
-            bonus_received += 1 if bpts is not None and bpts > 0 else 0
-            history.append(
-                {
-                    "round": round,
-                    "points": pts,
-                    "cost": cost,
-                    "bonus": bpts,
-                    "gi": gi,
-                    "xgi": xgi,
-                    "opponent": opponent,
-                    "form": pts / round,
-                }
-            )
-        self.players[player]["history"] = history
-        self.players[player]["stats"]["minutes_per_game"] = (
-            float(minutes) / matches if matches > 0 else 0
-        )
-        self.players[player]["stats"]["bonus_received"] = (
-            bonus_received / matches if matches > 0 else 0
-        )
-        return history
-
-    def query_player_by_name(self, name=None, max_results=10):
-        """
-        Query player by name
-        :param name: name of player
-        :return: player data
-        """
-        name = name.lower()
-        results = []
-        if name is None and id is None:
-            return None
-        count = 0
-        for player in self.data["elements"]:
-            if name is not None and name in player["web_name"].lower():
-                results.append((player["web_name"], player["id"]))
-                count += 1
-            if count >= max_results:
-                break
-        return results
+        data = requests.get(FPLQuerier.FPL_GENERAL_URL).json()
+        teams, teams_by_name = FPLQuerier.get_teams(data)
+        curr_gw, players, players_by_name = FPLQuerier.get_players(data, teams)
+        return curr_gw, data, teams, teams_by_name, players, players_by_name
