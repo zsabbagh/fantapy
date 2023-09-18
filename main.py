@@ -69,7 +69,7 @@ def generate_top_players(fpl: FPLQuerier):
             info["stats"]["expected_goal_involvements"],
             info["team"]["goals_scored"],
             round(100 * info["stats"]["gi_per_goal_scored"], 1),
-            info["stats"]["fixture_score"],
+            info["team"]["fixture_score"],
             round(float(info["stats"]["ict_index"]), 2),
             info["stats"]["minutes"],
             float(info["stats"]["minutes_per_game"]),
@@ -121,24 +121,71 @@ def generate_top_players(fpl: FPLQuerier):
     st.dataframe(filtered_df, width=1500, height=500)
 
 
+def generate_fixture_for_player(fpl: FPLQuerier, player=None):
+    col1, col2 = st.columns(2)
+    col1.write(f"Upcoming Fixtures for {player}")
+    col2.write(
+        f"Fixture Difficulty: {fpl.players[player]['team']['fixture_score']} / 10.0"
+    )
+    team = fpl.players[player]["team"]
+    fixtures = team["fixtures"]
+    upcoming_gws = sorted(list(fixtures.keys()))
+    cola, colb, colc, cold, cole = st.columns(5)
+    team_strength = fpl.players[player]["team"]["strength"]
+    cola.metric(
+        label=f"GW{upcoming_gws[0]}, {'Home' if fixtures[upcoming_gws[0]]['where'] == 'H' else 'Away'}",
+        value=fixtures[upcoming_gws[0]]["code"],
+        delta=fixtures[upcoming_gws[0]]["difficulty"] - team_strength,
+        delta_color="inverse",
+    )
+    colb.metric(
+        label=f"GW{upcoming_gws[1]}, {'Home' if fixtures[upcoming_gws[1]]['where'] == 'H' else 'Away'}",
+        value=fixtures[upcoming_gws[1]]["code"],
+        delta=fixtures[upcoming_gws[1]]["difficulty"] - team_strength,
+        delta_color="inverse",
+    )
+    colc.metric(
+        label=f"GW{upcoming_gws[2]}, {'Home' if fixtures[upcoming_gws[2]]['where'] == 'H' else 'Away'}",
+        value=fixtures[upcoming_gws[2]]["code"],
+        delta=fixtures[upcoming_gws[2]]["difficulty"] - team_strength,
+        delta_color="inverse",
+    )
+    cold.metric(
+        label=f"GW{upcoming_gws[3]}, {'Home' if fixtures[upcoming_gws[3]]['where'] == 'H' else 'Away'}",
+        value=fixtures[upcoming_gws[3]]["code"],
+        delta=fixtures[upcoming_gws[3]]["difficulty"] - team_strength,
+        delta_color="inverse",
+    )
+    cole.metric(
+        label=f"GW{upcoming_gws[4]}",
+        value=f"{fixtures[upcoming_gws[4]]['code']} {fixtures[upcoming_gws[4]]['where']}",
+        delta=fixtures[upcoming_gws[4]]["difficulty"] - team_strength,
+        delta_color="inverse",
+    )
+
+
 def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
     """
     Generate player metrics
     """
+    if player is not None:
+        fpl.query_player_kpi(player)
+    if player_comp is not None:
+        fpl.query_player_kpi(player_comp)
     stats = fpl.players[player]["stats"]
-    goals, assists, xg, xa, xgi, minutes, points = (
+    goals, assists, xg, xa, xgi, points, form_value, minutes_per_game = (
         float(stats["goals_scored"]),
         float(stats["assists"]),
         float(stats["expected_goals"]),
         float(stats["expected_assists"]),
         float(stats["expected_goal_involvements"]),
-        float(stats["minutes"]),
         float(stats["total_points"]),
+        float(stats["form_per_cost"]),
+        float(stats["minutes_per_game"]),
     )
     gi = goals + assists
     team_goals = fpl.players[player]["team"]["goals_scored"]
     team_gi = round(float(gi) / team_goals, 2) if team_goals > 0 else 0
-    min_per_point = minutes / points if points > 0 else 0
     if player_comp in fpl.players:
         (
             comp_goals,
@@ -146,16 +193,18 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
             comp_xg,
             comp_xa,
             comp_xgi,
-            comp_minutes,
             comp_points,
+            comp_form_value,
+            comp_minutes_per_game,
         ) = (
             float(fpl.players[player_comp]["stats"]["goals_scored"]),
             float(fpl.players[player_comp]["stats"]["assists"]),
             float(fpl.players[player_comp]["stats"]["expected_goals"]),
             float(fpl.players[player_comp]["stats"]["expected_assists"]),
             float(fpl.players[player_comp]["stats"]["expected_goal_involvements"]),
-            float(fpl.players[player_comp]["stats"]["minutes"]),
             float(fpl.players[player_comp]["stats"]["total_points"]),
+            float(fpl.players[player_comp]["stats"]["form_per_cost"]),
+            float(fpl.players[player_comp]["stats"]["minutes_per_game"]),
         )
         comp_gi = comp_goals + comp_assists
         comp_price = fpl.players[player_comp]["stats"]["now_cost"] / 10
@@ -163,7 +212,6 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
         comp_team_gi = (
             round(float(comp_gi) / comp_team_goals, 2) if comp_team_goals > 0 else 0
         )
-        comp_min_per_point = minutes / points if points > 0 else 0
     fixtures = fpl.players[player]["team"]["fixtures"]
     price = fpl.players[player]["stats"]["now_cost"] / 10
     comp_price_diff = round(price - comp_price, 2) if player_comp is not None else None
@@ -178,7 +226,7 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
     )
     st.write(f"Metrics for {player}, {fpl.players[player]['position']}")
     if player_comp is None:
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         dgoals = f"{str(round(goals - xg, 2))} ({xg} xG)" if goals != xg else None
         dassists = f"{str(round(assists - xa, 2))} ({xa} xA)" if assists != xa else None
         dxgi = f"{str(round(gi - xgi, 2))} ({xgi} xGI)" if gi != xgi else None
@@ -191,6 +239,7 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
             delta=team_goals,
             delta_color="off",
         )
+        col5.metric("Minutes/Game", minutes_per_game, delta=None, delta_color="off")
     else:
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric(label="Goal Involvements", value=gi, delta=f"{gi - comp_gi:.1f}")
@@ -200,52 +249,20 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
             value=f"{100*team_gi:.1f} %",
             delta=f"{100 * (team_gi - comp_team_gi):.1f}",
         )
-        col4.metric(label="Minutes", value=minutes, delta=f"{minutes - comp_minutes}")
-        col5.metric(
-            label="Minutes / Point",
-            value=f"{min_per_point:.1f}",
-            delta=f"{min_per_point - comp_min_per_point:.1f}",
+        col4.metric(
+            label="Minutes/Game",
+            value=minutes_per_game,
+            delta=f"{minutes_per_game - comp_minutes_per_game:.1f}",
         )
-    # TODO: Good pick on fixtures?
-    st.write(f"Upcoming Fixtures for {player}")
-    cola, colb, colc, cold, cole = st.columns(5)
-    team_strength = fpl.players[player]["team"]["strength"]
-    cola.metric(
-        label=f"GW{fixtures[0]['gw']}",
-        value=fixtures[0]["code"],
-        delta=fixtures[0]["difficulty"] - team_strength,
-        delta_color="inverse",
-    )
-    colb.metric(
-        label=f"GW{fixtures[1]['gw']}",
-        value=fixtures[1]["code"],
-        delta=fixtures[1]["difficulty"] - team_strength,
-        delta_color="inverse",
-    )
-    colc.metric(
-        label=f"GW{fixtures[2]['gw']}",
-        value=fixtures[2]["code"],
-        delta=fixtures[2]["difficulty"] - team_strength,
-        delta_color="inverse",
-    )
-    cold.metric(
-        label=f"GW{fixtures[3]['gw']}",
-        value=fixtures[3]["code"],
-        delta=fixtures[3]["difficulty"] - team_strength,
-        delta_color="inverse",
-    )
-    cole.metric(
-        label=f"GW{fixtures[4]['gw']}",
-        value=fixtures[4]["code"],
-        delta=fixtures[4]["difficulty"] - team_strength,
-        delta_color="inverse",
-    )
-    st.write(
-        "Fixture Difficulty",
-        fpl.players[player]["stats"]["fixture_score"],
-        " vs. team ",
-        fpl.players[player]["team"]["name"],
-    )
+        col5.metric(
+            label="Form/Cost",
+            value=f"{form_value:.1f}",
+            delta=f"{form_value - comp_form_value:.1f}",
+        )
+    if player is not None:
+        generate_fixture_for_player(fpl, player)
+    if player_comp is not None:
+        generate_fixture_for_player(fpl, player_comp)
 
 
 def generate_player_charts(fpl: FPLQuerier, player=None, player_comp=None):
@@ -274,6 +291,45 @@ def generate_player_charts(fpl: FPLQuerier, player=None, player_comp=None):
     # Generate figure for form/price
 
 
+def generate_team_metrics(fpl: FPLQuerier):
+    """
+    Generate table of teams
+    """
+    st.header("Teams")
+    team = st.selectbox(
+        "Select a team", sorted(list(fpl.teams_by_name.keys())), index=0
+    )
+    st.write(f"Matchups for {team}")
+    columns = [
+        "Name",
+        "Fixture Score",
+        "Score",
+        "Diff. 1",
+        "Diff. 2",
+        "Diff. 3",
+        "Diff. 4",
+        "Diff. 5",
+    ]
+    results = []
+    for other, matchup in fpl.teams_by_name[team].get("matchups", {}).items():
+        results.append(
+            [
+                other,
+                fpl.teams_by_name[other]["fixture_score"],
+                matchup["score"],
+                matchup["overlapping"][1],
+                matchup["overlapping"][2],
+                matchup["overlapping"][3],
+                matchup["overlapping"][4],
+                matchup["overlapping"][5],
+            ]
+        )
+    df = pd.DataFrame(results, columns=columns).sort_values(
+        by=["Score"], ascending=False
+    )
+    st.dataframe(df, width=1500, height=500)
+
+
 def main():
     # Initialize querier
     st.title("FantaPy Premier League \U0001F3C6")
@@ -284,8 +340,12 @@ def main():
     generate_top_players(fpl)
     # Player KPI
     st.header("Player KPI")
+    debug = st.checkbox("Debug", value=False)
     players_sorted = sorted(fpl.players.keys(), key=lambda x: x[0])
     player = st.selectbox("Select a player", players_sorted, index=0)
+    if debug:
+        st.write(f"Player: {player}")
+        st.write(fpl.players[player])
     col1, col2 = st.columns(2)
     compare = col2.checkbox("Compare with player", value=False)
     player_comp = (
@@ -297,6 +357,7 @@ def main():
     )
     generate_player_metrics(fpl, player=player, player_comp=player_comp)
     generate_player_charts(fpl, player=player, player_comp=player_comp)
+    generate_team_metrics(fpl)
 
 
 if __name__ == "__main__":
