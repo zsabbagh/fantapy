@@ -178,8 +178,7 @@ class FPLQuerier:
         player_id = self.players[player]["id"]
         data = requests.get(FPLQuerier.FPL_ELEMENT_SUMMARY_URL.format(player_id)).json()
         history = []
-        matches = 0
-        minutes = 0
+        bonus_received = minutes = matches = 0
         for gw in data["history"]:
             round, pts, bpts, cost = (
                 gw["round"],
@@ -200,6 +199,7 @@ class FPLQuerier:
             minutes += gw["minutes"]
             matches += 1
             # form = gw['form']
+            bonus_received += 1 if bpts is not None and bpts > 0 else 0
             history.append(
                 {
                     "round": round,
@@ -215,6 +215,9 @@ class FPLQuerier:
         self.players[player]["history"] = history
         self.players[player]["stats"]["minutes_per_game"] = (
             float(minutes) / matches if matches > 0 else 0
+        )
+        self.players[player]["stats"]["bonus_received"] = (
+            bonus_received / matches if matches > 0 else 0
         )
         return history
 

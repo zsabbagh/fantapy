@@ -173,7 +173,17 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
     if player_comp is not None:
         fpl.query_player_kpi(player_comp)
     stats = fpl.players[player]["stats"]
-    goals, assists, xg, xa, xgi, points, form_value, minutes_per_game = (
+    (
+        goals,
+        assists,
+        xg,
+        xa,
+        xgi,
+        points,
+        form_value,
+        minutes_per_game,
+        bonus_received,
+    ) = (
         float(stats["goals_scored"]),
         float(stats["assists"]),
         float(stats["expected_goals"]),
@@ -182,6 +192,7 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
         float(stats["total_points"]),
         float(stats["form_per_cost"]),
         float(stats["minutes_per_game"]),
+        float(stats["bonus_received"]),
     )
     gi = goals + assists
     team_goals = fpl.players[player]["team"]["goals_scored"]
@@ -196,6 +207,7 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
             comp_points,
             comp_form_value,
             comp_minutes_per_game,
+            comp_bonus_received,
         ) = (
             float(fpl.players[player_comp]["stats"]["goals_scored"]),
             float(fpl.players[player_comp]["stats"]["assists"]),
@@ -205,6 +217,7 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
             float(fpl.players[player_comp]["stats"]["total_points"]),
             float(fpl.players[player_comp]["stats"]["form_per_cost"]),
             float(fpl.players[player_comp]["stats"]["minutes_per_game"]),
+            float(fpl.players[player_comp]["stats"]["bonus_received"]),
         )
         comp_gi = comp_goals + comp_assists
         comp_price = fpl.players[player_comp]["stats"]["now_cost"] / 10
@@ -240,6 +253,13 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
             delta_color="off",
         )
         col5.metric("Minutes/Game", minutes_per_game, delta=None, delta_color="off")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric(
+            label="Bonus",
+            value=f"{100.0*bonus_received:.1f} %",
+            delta=None,
+            delta_color="off",
+        )
     else:
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric(label="Goal Involvements", value=gi, delta=f"{gi - comp_gi:.1f}")
@@ -247,7 +267,7 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
         col3.metric(
             label="Team GI",
             value=f"{100*team_gi:.1f} %",
-            delta=f"{100 * (team_gi - comp_team_gi):.1f}",
+            delta=f"{100 * (team_gi - comp_team_gi):.1f} %",
         )
         col4.metric(
             label="Minutes/Game",
@@ -258,6 +278,12 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
             label="Form/Cost",
             value=f"{form_value:.1f}",
             delta=f"{form_value - comp_form_value:.1f}",
+        )
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric(
+            "Bonus",
+            f"{100.0*bonus_received:.1f} %",
+            delta=f"{100.0*(bonus_received - comp_bonus_received):.1f} %",
         )
     if player is not None:
         generate_fixture_for_player(fpl, player)
