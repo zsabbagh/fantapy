@@ -40,53 +40,59 @@ def generate_top_players(fpl: FPLQuerier):
         "Assists",
         "xA",
         "Team Goals",
-        "Team GI",
+        "Team GI %",
         "Fixture Score",
         "ICT",
         "Minutes",
         "Form",
+        "Form/Cost",
         "Minutes/Game",
         "Starts/Game",
     ]
     # TODO: Filter on easy fixtures
     for player, info in fpl.players.items():
         team_games = info["team"]["games"]
-        results.append(
-            [
-                player.split(" (")[0],
-                info["team"]["name"],
-                info["position"],
-                round(info["stats"]["now_cost"] / 10.0, 2),
-                info["stats"]["total_points"],
-                round(float(info["stats"]["bonus_per_game"]), 2),
-                info["stats"]["goals_scored"],
-                info["stats"]["expected_goals"],
-                info["stats"]["assists"],
-                info["stats"]["expected_assists"],
-                info["team"]["goals_scored"],
-                round(info["stats"]["gi_per_goal_scored"], 2),
-                info["stats"]["fixture_score"],
-                round(float(info["stats"]["ict_index"]), 2),
-                info["stats"]["minutes"],
-                float(info["stats"]["points_per_game"]),
-                float(info["stats"]["minutes_per_game"]),
-                float(info["stats"]["starts_per_game"]),
-            ]
-        )
+        values = [
+            player.split(" (")[0],
+            info["team"]["name"],
+            info["position"],
+            round(info["stats"]["now_cost"] / 10.0, 2),
+            info["stats"]["total_points"],
+            round(float(info["stats"]["bonus_per_game"]), 2),
+            info["stats"]["goals_scored"],
+            info["stats"]["expected_goals"],
+            info["stats"]["assists"],
+            info["stats"]["expected_assists"],
+            info["team"]["goals_scored"],
+            round(100 * info["stats"]["gi_per_goal_scored"], 1),
+            info["stats"]["fixture_score"],
+            round(float(info["stats"]["ict_index"]), 2),
+            info["stats"]["minutes"],
+            float(info["stats"]["points_per_game"]),  # form
+            float(info["stats"]["form_per_cost"]),  # form
+            float(info["stats"]["minutes_per_game"]),
+            float(info["stats"]["starts_per_game"]),
+        ]
+        results.append(values)
+    st.write(f"Total players: {len(results)}")
     df = pd.DataFrame(results, columns=columns).sort_values(by=["Name"], ascending=True)
-    selected_pos = st.multiselect(
-        "Select positions", ["GK", "DEF", "MID", "FWD"], ["GK", "DEF", "MID", "FWD"]
-    )
+    selected_pos = st.multiselect("Select positions", ["GK", "DEF", "MID", "FWD"])
     col1, col2 = st.columns(2)
     selected_price = col1.slider("Select price range", 3.5, 14.5, (3.5, 14.5), step=0.5)
-    selected_team_gi = col2.slider("Minimum team GI", 0.0, 1.0, step=0.1)
+    selected_team_gi = col2.slider(
+        "Minimum team GI %",
+        0,
+        100,
+        step=5,
+        help="Measures how much of the team's goals a player is involved in",
+    )
     col1, col2 = st.columns(2)
     selected_minutes = col1.slider("Minimum min/game", 0, 90, step=5, value=80)
     selected_bonus = col2.slider("Minimum bonus/game", 0.0, 3.0, step=0.1)
     df = df[
         df["Position"].isin(selected_pos)
         & df["Price"].between(selected_price[0], selected_price[1])
-        & df["Team GI"].between(selected_team_gi, 1.0)
+        & df["Team GI %"].between(selected_team_gi, 100)
         & df["Minutes/Game"].between(selected_minutes, 90)
         & df["Bonus/Game"].between(selected_bonus, 3.0)
     ]
@@ -154,7 +160,7 @@ def generate_player_metrics(fpl: FPLQuerier, player=None, player_comp=None):
         ),
         unsafe_allow_html=True,
     )
-    st.write(f"Metrics for {player}")
+    st.write(f"Metrics for {player}, {fpl.players[player]['position']}")
     if player_comp is None:
         col1, col2, col3, col4 = st.columns(4)
         dgoals = f"{str(round(goals - xg, 2))} ({xg} xG)" if goals != xg else None

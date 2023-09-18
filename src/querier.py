@@ -87,6 +87,7 @@ class FPLQuerier:
                         "gw": gw,
                     }
                 )
+        print(f"Loaded {len(self.data.get('elements', []))} players")
         for player in self.data.get("elements", []):
             id = player["id"]
             team = self.teams.get(player["team"], {})
@@ -99,11 +100,11 @@ class FPLQuerier:
                 "team": team,
                 "position": "GK"
                 if player["element_type"] == 1
-                else "DEF"
-                if player["element_type"] == 2
-                else "MID"
-                if player["element_type"] == 3
-                else "FWD",
+                else (
+                    "DEF"
+                    if player["element_type"] == 2
+                    else ("MID" if player["element_type"] == 3 else "FWD")
+                ),
                 "stats": player,
             }
             count = fixture_score = 0
@@ -123,6 +124,9 @@ class FPLQuerier:
             )
             self.players[player_name]["stats"]["starts_per_game"] = (
                 player["starts"] / team_games if team_games > 0 else 0
+            )
+            self.players[player_name]["stats"]["form_per_cost"] = (
+                10 * float(player["points_per_game"]) / player["now_cost"]
             )
 
     def __init__(self):
