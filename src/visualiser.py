@@ -25,6 +25,7 @@ class FPLVisualiser:
             "Price",
             "Points",
             "Bonus/Game",
+            "Bonus %",
             "Goals",
             "xG",
             "Assists",
@@ -51,6 +52,7 @@ class FPLVisualiser:
                 round(info["stats"]["now_cost"] / 10.0, 2),
                 info["stats"]["total_points"],
                 round(float(info["stats"]["bonus_per_game"]), 2),
+                int(100 * info["stats"]["bonus_chance"]),
                 info["stats"]["goals_scored"],
                 info["stats"]["expected_goals"],
                 info["stats"]["assists"],
@@ -88,7 +90,7 @@ class FPLVisualiser:
         )
         col1, col2 = st.columns(2)
         selected_minutes = col1.slider("Minimum min/game", 0, 90, step=5, value=80)
-        selected_bonus = col2.slider("Minimum bonus/game", 0.0, 3.0, step=0.1)
+        selected_bonus = col2.slider("Minimum bonus chance", 0, 100, step=5)
         # st.write(f"Players matching criteria: {len(df)}")
         # df = df[df["Position"].isin(selected_pos)]
         # st.write(f"Players matching POSITION criteria: {len(df)}")
@@ -104,7 +106,7 @@ class FPLVisualiser:
             & df["Price"].between(selected_price[0], selected_price[1])
             & df["Team GI %"].between(selected_team_gi, 100)
             & df["Minutes/Game"].between(selected_minutes, 90)
-            & df["Bonus/Game"].between(selected_bonus, 3.0)
+            & df["Bonus %"].between(selected_bonus, 100)
         ]
         unavailable = ["Name"]
         available = sorted(list(set(df.columns) - set(unavailable)))
@@ -363,7 +365,7 @@ class FPLVisualiser:
         st.header("Player KPI")
         debug = st.checkbox("Debug", value=False)
         players_sorted = sorted(fpl.players_by_name.keys(), key=lambda x: x[0])
-        player = st.selectbox("Select a player", players_sorted, index=0)
+        player = st.selectbox("Select a player", players_sorted, index=297)
         if debug:
             st.write(f"Player: {player}")
             st.write(fpl.players[player])
@@ -373,6 +375,7 @@ class FPLVisualiser:
             col1.selectbox(
                 f"Select player to compare {player} with",
                 players_sorted,
+                index=212,
             )
             if compare
             else None
