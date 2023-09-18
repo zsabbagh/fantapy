@@ -21,18 +21,32 @@ refresh = 0
 
 def main():
     # Initialize querier
-    st.title("FantaPy Premier League \U0001F3C6")
-    (
-        fpl.curr_gw,
-        fpl.data,
-        fpl.teams,
-        fpl.teams_by_name,
-        fpl.players,
-        fpl.players_by_name,
-    ) = FPLQuerier.run(refresh)
-    FPLVisualiser.generate_top_players(fpl)
-    FPLVisualiser.generate_player_section(fpl)
-    FPLVisualiser.generate_team_metrics(fpl)
+    st.set_page_config(layout="wide")
+    with st.sidebar:
+        st.title("FantaPy!")
+        (
+            fpl.curr_gw,
+            fpl.data,
+            fpl.teams,
+            fpl.teams_by_name,
+            fpl.players,
+            fpl.players_by_name,
+        ) = FPLQuerier.run(refresh)
+        what_to_show = st.multiselect(
+            "What to show?",
+            [
+                "Top players",
+                "Player section",
+                "Team metrics",
+            ],
+            ["Top players", "Player section", "Team metrics"],
+        )
+    if "Top players" in what_to_show:
+        FPLVisualiser.top_players(fpl)
+    if "Player section" in what_to_show:
+        FPLVisualiser.player_section(fpl)
+    if "Team metrics" in what_to_show:
+        FPLVisualiser.team_metrics(fpl)
 
 
 if __name__ == "__main__":

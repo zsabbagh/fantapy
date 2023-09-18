@@ -12,7 +12,7 @@ def rnd(x):
 
 
 class FPLVisualiser:
-    def generate_top_players(fpl: FPLData):
+    def top_players(fpl: FPLData):
         """
         Generate table of top players
         """
@@ -118,7 +118,7 @@ class FPLVisualiser:
         )
         st.dataframe(filtered_df, width=1500, height=500)
 
-    def generate_fixture_for_player(fpl: FPLData, player=None):
+    def fixture_for_player(fpl: FPLData, player=None):
         players = fpl.players_by_name
         col1, col2 = st.columns(2)
         col1.write(f"Upcoming Fixtures for {player}")
@@ -161,36 +161,25 @@ class FPLVisualiser:
             delta_color="inverse",
         )
 
-    def generate_player_metrics(fpl: FPLData, player=None, player_comp=None):
+    def player_metrics(fpl: FPLData, player=None, player_comp=None):
         """
         Generate player metrics
         """
         players = fpl.players_by_name
         stats = players[player]["stats"]
-        (
-            goals,
-            assists,
-            xg,
-            xa,
-            xgi,
-            points,
-            form_value,
-            minutes_per_game,
-            bonus_received,
-            price,
-        ) = (
-            float(stats["goals_scored"]),
-            float(stats["assists"]),
-            float(stats["expected_goals"]),
-            float(stats["expected_assists"]),
-            float(stats["expected_goal_involvements"]),
-            float(stats["total_points"]),
-            float(stats["form_per_cost"]),
-            float(stats["minutes_per_game"]),
-            float(stats["bonus_chance"]),
-            float(stats["now_cost"] / 10),
-        )
+        goals = int(stats["goals_scored"])
+        assists = int(stats["assists"])
         gi = goals + assists
+        xg = float(stats["expected_goals"])
+        xa = float(stats["expected_assists"])
+        xgi = xg + xa
+        points = stats["total_points"]
+        form_value = stats["form_per_cost"]
+        minutes_per_game = stats["minutes_per_game"]
+        bonus_per_game = stats["bonus_per_game"]
+        bonus_chance = stats["bonus_chance"]
+        price = stats["now_cost"] / 10
+        fixture_score = players[player]["team"]["fixture_score"]
         team_goals = players[player]["team"]["goals_scored"]
         team_gi = round(float(gi) / team_goals, 2) if team_goals > 0 else 0
         if player_comp in players:
@@ -205,12 +194,13 @@ class FPLVisualiser:
             comp_points = float(comp_stats["total_points"])
             comp_form_value = float(comp_stats["form_per_cost"])
             comp_minutes_per_game = float(comp_stats["minutes_per_game"])
-            comp_bonus_received = float(comp_stats["bonus_chance"])
+            comp_bonus_per_game = float(comp_stats["bonus_per_game"])
+            comp_bonus_chance = float(comp_stats["bonus_chance"])
             comp_team_goals = players[player_comp]["team"]["goals_scored"]
             comp_team_gi = (
                 round(float(comp_gi) / comp_team_goals, 2) if comp_team_goals > 0 else 0
             )
-        fixtures = players[player]["team"]["fixtures"]
+            comp_fixture_score = players[player_comp]["team"]["fixture_score"]
         comp_price_diff = (
             round(price - comp_price, 2) if player_comp is not None else None
         )
@@ -244,7 +234,7 @@ class FPLVisualiser:
             col1, col2, col3, col4, col5 = st.columns(5)
             col1.metric(
                 label="Bonus",
-                value=f"{100.0*bonus_received:.1f} %",
+                value=f"{100.0*bonus_chance:.1f} %",
                 delta=None,
                 delta_color="off",
             )
@@ -269,18 +259,30 @@ class FPLVisualiser:
                 value=f"{form_value:.1f}",
                 delta=f"{form_value - comp_form_value:.1f}",
             )
+            # stack 2
             col1, col2, col3, col4, col5 = st.columns(5)
             col1.metric(
-                "Bonus",
-                f"{100.0*bonus_received:.1f} %",
-                delta=f"{100.0*(bonus_received - comp_bonus_received):.1f} %",
+                "Bonus/Game",
+                value=bonus_per_game,
+                delta=f"{bonus_per_game - comp_bonus_per_game:.1f}",
+            )
+            col2.metric(
+                "Bonus %",
+                f"{100.0*bonus_chance:.1f} %",
+                delta=f"{100.0*(bonus_chance - comp_bonus_chance):.1f} %",
+            )
+            col3.metric(
+                "Fixture Score",
+                fixture_score,
+                delta=f"{fixture_score - comp_fixture_score:.1f}",
+                delta_color="inverse",
             )
         if player is not None:
-            FPLVisualiser.generate_fixture_for_player(fpl, player)
+            FPLVisualiser.fixture_for_player(fpl, player)
         if player_comp is not None:
-            FPLVisualiser.generate_fixture_for_player(fpl, player_comp)
+            FPLVisualiser.fixture_for_player(fpl, player_comp)
 
-    def generate_player_charts(fpl: FPLData, player=None, player_comp=None):
+    def player_charts(fpl: FPLData, player=None, player_comp=None):
         """
         Generate player KPI
         """
@@ -289,38 +291,72 @@ class FPLVisualiser:
         comp_history = fpl.players_by_name.get(player_comp, {}).get("history", {})
         columns = ["GW", "GI", "xGI"]
         results = []
-        gws, gis, xgis = [], [], []
-        comp_gis, comp_xgis = [], []
+        gws, gis, xgis, pts, bpts = [], [], [], [], []
+        comp_gis, comp_xgis, comp_pts, comp_bpts = [], [], [], []
         for gw, info in history.items():
             gws.append(gw)
             gis.append(info["goals_scored"] + info["assists"])
             xgis.append(info["expected_goal_involvements"])
+            pts.append(info["total_points"])
+            bpts.append(info["bonus"])
             if player_comp is not None:
                 comp_info = comp_history.get(gw, {})
                 comp_gis.append(
                     comp_info.get("goals_scored", 0) + comp_info.get("assists", 0)
                 )
                 comp_xgis.append(comp_info.get("expected_goal_involvements", 0))
+                comp_pts.append(comp_info.get("total_points", 0))
+                comp_bpts.append(comp_info.get("bonus", 0))
         # form = list(map(lambda x: x['form'], kpi))
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=gws, y=gis, mode="lines", name="GI"))
-        fig.add_trace(go.Scatter(x=gws, y=xgis, mode="lines", name="xGI"))
+        fig_gis = go.Figure()
+        fig_bonus = go.Figure()
+        fig_gis.add_trace(go.Scatter(x=gws, y=gis, mode="lines", name="GI"))
+        fig_gis.add_trace(go.Scatter(x=gws, y=xgis, mode="lines", name="xGI"))
+        fig_bonus.add_trace(go.Scatter(x=gws, y=pts, mode="lines", name="Points"))
+        fig_bonus.add_trace(go.Scatter(x=gws, y=bpts, mode="lines", name="Bonus"))
         if player_comp is not None:
-            fig.add_trace(go.Scatter(x=gws, y=comp_gis, mode="lines", name=f"GI comp"))
-            fig.add_trace(go.Scatter(x=gws, y=comp_xgis, mode="lines", name="xGI comp"))
+            fig_gis.add_trace(
+                go.Scatter(x=gws, y=comp_gis, mode="lines", name=f"GI comp")
+            )
+            fig_gis.add_trace(
+                go.Scatter(x=gws, y=comp_xgis, mode="lines", name="xGI comp")
+            )
+            fig_bonus.add_trace(
+                go.Scatter(x=gws, y=comp_pts, mode="lines", name="Points comp")
+            )
+            fig_bonus.add_trace(
+                go.Scatter(x=gws, y=comp_bpts, mode="lines", name="Bonus comp")
+            )
         # fig.add_trace(go.Scatter(x=x, y=form, mode='lines', name='Goals+Assists'))
-        fig.update_layout(
+        fig_gis.update_layout(
             xaxis_title="GW",
             yaxis_title="",
             title="Goal Involvements / xGI",
             hovermode="closest",
         )
-        fig.update_xaxes(tick0=1, dtick=1)
-        fig.update_yaxes(tick0=0, dtick=1, range=[0, round(max(gis + xgis)) + 1])
-        st.plotly_chart(fig)
+        fig_bonus.update_layout(
+            xaxis_title="GW",
+            yaxis_title="",
+            title="Points / Bonus",
+            hovermode="closest",
+        )
+        fig_gis.update_xaxes(tick0=1, dtick=1)
+        fig_bonus.update_xaxes(tick0=1, dtick=1)
+        fig_gis.update_yaxes(
+            tick0=0,
+            dtick=1,
+            range=[0, round(max(gis + xgis + comp_gis + comp_xgis)) + 1],
+        )
+        fig_bonus.update_yaxes(
+            tick0=0,
+            dtick=5,
+            range=[0, round(max(pts + bpts + comp_pts + comp_bpts)) + 1],
+        )
+        st.plotly_chart(fig_gis)
+        st.plotly_chart(fig_bonus)
         # Generate figure for form/price
 
-    def generate_team_metrics(fpl: FPLData):
+    def team_metrics(fpl: FPLData):
         """
         Generate table of teams
         """
@@ -358,21 +394,17 @@ class FPLVisualiser:
         )
         st.dataframe(df, width=1500, height=500)
 
-    def generate_player_section(fpl: FPLData):
+    def player_section(fpl: FPLData):
         """
         Generate player section
         """
         st.header("Player KPI")
-        debug = st.checkbox("Debug", value=False)
+        cola, colb = st.columns(2)
         players_sorted = sorted(fpl.players_by_name.keys(), key=lambda x: x[0])
-        player = st.selectbox("Select a player", players_sorted, index=297)
-        if debug:
-            st.write(f"Player: {player}")
-            st.write(fpl.players[player])
-        col1, col2 = st.columns(2)
-        compare = col2.checkbox("Compare with player", value=False)
+        player = cola.selectbox("Select a player", players_sorted, index=297)
+        compare = cola.checkbox("Compare with player", value=False)
         player_comp = (
-            col1.selectbox(
+            cola.selectbox(
                 f"Select player to compare {player} with",
                 players_sorted,
                 index=212,
@@ -380,9 +412,7 @@ class FPLVisualiser:
             if compare
             else None
         )
-        FPLVisualiser.generate_player_metrics(
-            fpl, player=player, player_comp=player_comp
-        )
-        FPLVisualiser.generate_player_charts(
-            fpl, player=player, player_comp=player_comp
-        )
+        with cola:
+            FPLVisualiser.player_metrics(fpl, player=player, player_comp=player_comp)
+        with colb:
+            FPLVisualiser.player_charts(fpl, player=player, player_comp=player_comp)
