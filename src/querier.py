@@ -45,6 +45,12 @@ class FPLQuerier:
             player["gi_per_goal_scored"] = (
                 float(player["goals_scored"] + player["assists"]) / team["goals_scored"]
             )
+            for k, v in player.items():
+                if type(v) == str:
+                    try:
+                        player[k] = round(float(v), 3)
+                    except ValueError:
+                        player[k] = 0
             players[id] = {
                 "id": id,
                 "name": player_name,
@@ -104,6 +110,11 @@ class FPLQuerier:
             )
             stats["form_per_cost"] = (
                 10 * float(stats["points_per_game"]) / stats["now_cost"]
+            )
+            stats["minutes_per_xgi"] = (
+                stats["minutes"] / stats["expected_goal_involvements"]
+                if stats["expected_goal_involvements"] > 0
+                else 0
             )
         return curr_gw, players, players_by_name
 
@@ -170,9 +181,9 @@ class FPLQuerier:
             for fixture in team["fixtures"].values():
                 fixture_score += fixture["difficulty"] * factor
                 factor -= 2 if factor > 2 else 0
-                if (count := count + 1) >= 5:
+                if (count := count + 1) >= 3:
                     break
-            team["fixture_score"] = round(fixture_score / float(25 + 15 + 5 + 5 + 5), 2)
+            team["fixture_score"] = round(5 * fixture_score / float(25 + 15 + 5), 2)
             for other in teams.values():
                 if other["id"] in team["matchups"]:
                     continue

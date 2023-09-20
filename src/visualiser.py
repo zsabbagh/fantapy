@@ -11,6 +11,11 @@ def rnd(x):
     return round(x, 2)
 
 
+@st.cache_data
+def get_teams(fpl: FPLData):
+    return sorted(list(fpl.teams_by_name.keys()))
+
+
 class FPLVisualiser:
     def top_players(fpl: FPLData):
         """
@@ -18,9 +23,11 @@ class FPLVisualiser:
         """
         st.header("Top Players")
         results = []
+        teams_by_name = fpl.teams_by_name
         columns = [
             "Name",
             "Team",
+            "Fixture Score",
             "Position",
             "Price",
             "Points",
@@ -34,10 +41,10 @@ class FPLVisualiser:
             "xGI",
             "Team Goals",
             "Team GI %",
-            "Fixture Score",
             "ICT",
             "Minutes",
             "Minutes/Game",
+            "Minutes/xGI",
             "Form",
             "Form/Cost",
             "Starts/Game",
@@ -48,6 +55,7 @@ class FPLVisualiser:
             values = [
                 info["name"],
                 info["team"]["name"],
+                float(info["team"]["fixture_score"]),
                 info["position"],
                 round(info["stats"]["now_cost"] / 10.0, 2),
                 info["stats"]["total_points"],
@@ -61,10 +69,10 @@ class FPLVisualiser:
                 info["stats"]["expected_goal_involvements"],
                 info["team"]["goals_scored"],
                 round(100 * info["stats"]["gi_per_goal_scored"], 1),
-                info["team"]["fixture_score"],
                 round(float(info["stats"]["ict_index"]), 2),
                 info["stats"]["minutes"],
                 float(info["stats"]["minutes_per_game"]),
+                round(float(info["stats"]["minutes_per_xgi"]), 2),
                 float(info["stats"]["points_per_game"]),  # form
                 float(info["stats"]["form_per_cost"]),  # form
                 float(info["stats"]["starts_per_game"]),
@@ -74,12 +82,40 @@ class FPLVisualiser:
         df = pd.DataFrame(results, columns=columns).sort_values(
             by=["Name"], ascending=True
         )
-        selected_pos = st.multiselect(
-            "Select positions", ["GK", "DEF", "MID", "FWD"], ["GK", "DEF", "MID", "FWD"]
+        col1, col2 = st.columns(2)
+        selected_pos = col1.multiselect(
+            "Select positions", ["GK", "DEF", "MID", "FWD"], []
+        )
+        selected_pos = (
+            selected_pos if len(selected_pos) > 0 else ["GK", "DEF", "MID", "FWD"]
+        )
+        selected_teams = col2.multiselect("Select teams", teams_by_name, [])
+        selected_teams = selected_teams if len(selected_teams) > 0 else teams_by_name
+        col1, col2 = st.columns(2)
+        selected_fscore = col1.slider(
+            "Select fixture score",
+            0.0,
+            5.0,
+            step=0.1,
+            value=(0.0, 5.0),
+            help="Difficulty of fixture",
+        )
+        selected_min_per_xgi = col2.slider(
+            "Select minutes per xGI",
+            0,
+            1000,
+            step=10,
+            value=(0, 1000),
+            help="Minutes per expected goal involvement",
+        )
+        selected_min_per_xgi = (
+            (selected_min_per_xgi[0], 10000000)
+            if selected_min_per_xgi[1] == 1000
+            else selected_min_per_xgi
         )
         col1, col2 = st.columns(2)
         selected_price = col1.slider(
-            "Select price range", 3.5, 14.5, (3.5, 14.5), step=0.5
+            "Select price range", 3.5, 14.5, (3.5, 14.5), step=0.1
         )
         selected_team_gi = col2.slider(
             "Minimum team GI %",
@@ -105,14 +141,18 @@ class FPLVisualiser:
             df["Position"].isin(selected_pos)
             & df["Price"].between(selected_price[0], selected_price[1])
             & df["Team GI %"].between(selected_team_gi, 100)
+            & df["Fixture Score"].between(selected_fscore[0], selected_fscore[1])
             & df["Minutes/Game"].between(selected_minutes, 90)
             & df["Bonus %"].between(selected_bonus, 100)
+            & df["Team"].isin(selected_teams)
+            & df["Minutes/xGI"].between(
+                selected_min_per_xgi[0], selected_min_per_xgi[1]
+            )
         ]
         unavailable = ["Name"]
         available = sorted(list(set(df.columns) - set(unavailable)))
-        selected_columns = st.multiselect(
-            "Select columns", available, default=available
-        )
+        selected_columns = st.multiselect("Select columns", available, default=[])
+        selected_columns = selected_columns if len(selected_columns) > 0 else available
         filtered_df = df.drop(
             columns=list(set(df.columns) - set(selected_columns + unavailable))
         )
