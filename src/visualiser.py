@@ -27,6 +27,7 @@ class FPLVisualiser:
         columns = [
             "Name",
             "Team",
+            "Team Clean Sheets",
             "Fixture Score",
             "Position",
             "Price",
@@ -55,6 +56,7 @@ class FPLVisualiser:
             values = [
                 info["name"],
                 info["team"]["name"],
+                info["team"]["clean_sheets"],
                 float(info["team"]["fixture_score"]),
                 info["position"],
                 round(info["stats"]["now_cost"] / 10.0, 2),
@@ -167,39 +169,46 @@ class FPLVisualiser:
         )
         team = players[player]["team"]
         fixtures = team["fixtures"]
-        upcoming_gws = sorted(list(fixtures.keys()))
+        upcoming_gws = sorted(
+            [x for x in fixtures.keys() if fixtures[x].get("done", None) == False]
+        )
         cola, colb, colc, cold, cole = st.columns(5)
         team_strength = players[player]["team"]["strength"]
-        cola.metric(
-            label=f"GW{upcoming_gws[0]}, {'Home' if fixtures[upcoming_gws[0]]['where'] == 'H' else 'Away'}",
-            value=fixtures[upcoming_gws[0]]["code"],
-            delta=fixtures[upcoming_gws[0]]["difficulty"] - team_strength,
-            delta_color="inverse",
-        )
-        colb.metric(
-            label=f"GW{upcoming_gws[1]}, {'Home' if fixtures[upcoming_gws[1]]['where'] == 'H' else 'Away'}",
-            value=fixtures[upcoming_gws[1]]["code"],
-            delta=fixtures[upcoming_gws[1]]["difficulty"] - team_strength,
-            delta_color="inverse",
-        )
-        colc.metric(
-            label=f"GW{upcoming_gws[2]}, {'Home' if fixtures[upcoming_gws[2]]['where'] == 'H' else 'Away'}",
-            value=fixtures[upcoming_gws[2]]["code"],
-            delta=fixtures[upcoming_gws[2]]["difficulty"] - team_strength,
-            delta_color="inverse",
-        )
-        cold.metric(
-            label=f"GW{upcoming_gws[3]}, {'Home' if fixtures[upcoming_gws[3]]['where'] == 'H' else 'Away'}",
-            value=fixtures[upcoming_gws[3]]["code"],
-            delta=fixtures[upcoming_gws[3]]["difficulty"] - team_strength,
-            delta_color="inverse",
-        )
-        cole.metric(
-            label=f"GW{upcoming_gws[4]}, {'Home' if fixtures[upcoming_gws[4]]['where'] == 'H' else 'Away'}",
-            value=fixtures[upcoming_gws[4]]["code"],
-            delta=fixtures[upcoming_gws[4]]["difficulty"] - team_strength,
-            delta_color="inverse",
-        )
+        if len(upcoming_gws) > 0:
+            cola.metric(
+                label=f"GW{upcoming_gws[0]}, {'Home' if fixtures[upcoming_gws[0]]['where'] == 'H' else 'Away'}",
+                value=fixtures[upcoming_gws[0]]["code"],
+                delta=fixtures[upcoming_gws[0]]["difficulty"] - team_strength,
+                delta_color="inverse",
+            )
+        if len(upcoming_gws) > 1:
+            colb.metric(
+                label=f"GW{upcoming_gws[1]}, {'Home' if fixtures[upcoming_gws[1]]['where'] == 'H' else 'Away'}",
+                value=fixtures[upcoming_gws[1]]["code"],
+                delta=fixtures[upcoming_gws[1]]["difficulty"] - team_strength,
+                delta_color="inverse",
+            )
+        if len(upcoming_gws) > 2:
+            colc.metric(
+                label=f"GW{upcoming_gws[2]}, {'Home' if fixtures[upcoming_gws[2]]['where'] == 'H' else 'Away'}",
+                value=fixtures[upcoming_gws[2]]["code"],
+                delta=fixtures[upcoming_gws[2]]["difficulty"] - team_strength,
+                delta_color="inverse",
+            )
+        if len(upcoming_gws) > 3:
+            cold.metric(
+                label=f"GW{upcoming_gws[3]}, {'Home' if fixtures[upcoming_gws[3]]['where'] == 'H' else 'Away'}",
+                value=fixtures[upcoming_gws[3]]["code"],
+                delta=fixtures[upcoming_gws[3]]["difficulty"] - team_strength,
+                delta_color="inverse",
+            )
+        if len(upcoming_gws) > 4:
+            cole.metric(
+                label=f"GW{upcoming_gws[4]}, {'Home' if fixtures[upcoming_gws[4]]['where'] == 'H' else 'Away'}",
+                value=fixtures[upcoming_gws[4]]["code"],
+                delta=fixtures[upcoming_gws[4]]["difficulty"] - team_strength,
+                delta_color="inverse",
+            )
 
     def player_metrics(fpl: FPLData, player=None, player_comp=None):
         """
@@ -333,8 +342,17 @@ class FPLVisualiser:
         results = []
         gws, gis, xgis, pts, bpts = [], [], [], [], []
         comp_gis, comp_xgis, comp_pts, comp_bpts = [], [], [], []
+        team = fpl.players_by_name[player]["team"]
+        comp_team = fpl.players_by_name.get(player_comp, {}).get("team", {})
         for gw, info in history.items():
-            gws.append(gw)
+            gws.append(
+                f"GW{gw}, {team['fixtures'][gw]['code']}"
+                + (
+                    f"/{comp_team['fixtures'][gw]['code']}"
+                    if player_comp is not None
+                    else ""
+                )
+            )
             gis.append(info["goals_scored"] + info["assists"])
             xgis.append(info["expected_goal_involvements"])
             pts.append(info["total_points"])
@@ -408,7 +426,9 @@ class FPLVisualiser:
         columns = [
             "Name",
             "Fixture Score",
-            "Score",
+            "Matchup Score",
+            "Goals Scored",
+            "Goals Conceded",
             "Diff. 1",
             "Diff. 2",
             "Diff. 3",
@@ -416,12 +436,15 @@ class FPLVisualiser:
             "Diff. 5",
         ]
         results = []
+        teams_by_name = fpl.teams_by_name
         for other, matchup in fpl.teams_by_name[team].get("matchups", {}).items():
             results.append(
                 [
                     other,
                     fpl.teams_by_name[other]["fixture_score"],
                     matchup["score"],
+                    teams_by_name[other]["goals_scored"],
+                    teams_by_name[other]["goals_conceded"],
                     matchup["overlapping"][1],
                     matchup["overlapping"][2],
                     matchup["overlapping"][3],
@@ -430,7 +453,7 @@ class FPLVisualiser:
                 ]
             )
         df = pd.DataFrame(results, columns=columns).sort_values(
-            by=["Score"], ascending=False
+            by=["Matchup Score"], ascending=False
         )
         st.dataframe(df, width=1500, height=500)
 

@@ -131,6 +131,7 @@ class FPLQuerier:
                 "goals_scored": 0,
                 "goals_conceded": 0,
                 "games": 0,
+                "clean_sheets": 0,
                 "matchups": {},
             }
             teams_by_name[team["name"]] = teams[team["id"]]
@@ -138,47 +139,49 @@ class FPLQuerier:
         for fixture in fixtures:
             if fixture.get("event", None) is None:
                 continue
-            if fixture["started"] is not True and fixture["finished"] is not True:
-                continue
             team_a = fixture.get("team_a", None)
             team_h = fixture.get("team_h", None)
             gw = fixture["event"]
+            done_fixture = fixture["finished"] is True or fixture["started"] is True
             if team_a in teams:
-                teams[team_a]["goals_scored"] += fixture["team_a_score"]
-                teams[team_a]["goals_conceded"] += fixture["team_h_score"]
-                teams[team_a]["games"] += 1
-            if team_h in teams:
-                teams[team_h]["goals_scored"] += fixture["team_h_score"]
-                teams[team_h]["goals_conceded"] += fixture["team_a_score"]
-                teams[team_h]["games"] += 1
-        fixtures = list(filter(lambda x: not x["started"], fixtures))
-        for fixture in fixtures:
-            gw = fixture["event"]
-            if gw is None:
-                continue
-            team_a = fixture.get("team_a", None)
-            team_a_str = teams[team_a]["strength"]
-            team_h = fixture.get("team_h", None)
-            team_h_str = teams[team_h]["strength"]
-            if team_a in teams:
+                if done_fixture:
+                    teams[team_a]["goals_scored"] += fixture["team_a_score"]
+                    teams[team_a]["goals_conceded"] += fixture["team_h_score"]
+                    teams[team_a]["games"] += 1
+                    teams[team_a]["clean_sheets"] += (
+                        1 if fixture["team_h_score"] == 0 else 0
+                    )
                 teams[team_a]["fixtures"][gw] = {
                     "team": team_h,
                     "code": teams[team_h]["code"],
-                    "difficulty": team_h_str,
-                    "where": "A",
+                    "difficulty": teams[team_h]["strength"],
+                    "where": "H",
+                    "done": done_fixture,
                 }
             if team_h in teams:
+                if done_fixture:
+                    teams[team_h]["goals_scored"] += fixture["team_h_score"]
+                    teams[team_h]["goals_conceded"] += fixture["team_a_score"]
+                    teams[team_h]["games"] += 1
+                    teams[team_h]["clean_sheets"] += (
+                        1 if fixture["team_a_score"] == 0 else 0
+                    )
                 teams[team_h]["fixtures"][gw] = {
                     "team": team_a,
                     "code": teams[team_a]["code"],
-                    "where": "H",
-                    "difficulty": team_a_str,
+                    "where": "A",
+                    "difficulty": teams[team_a]["strength"],
+                    "done": done_fixture,
                 }
         # Generate fixture score
         for team in teams.values():
             count = fixture_score = 0
             factor = 5
-            for fixture in team["fixtures"].values():
+            upcoming_three = sorted(
+                [i for i in team["fixtures"] if not team["fixtures"][i]["done"]][:3]
+            )
+            for gw in upcoming_three:
+                fixture = team["fixtures"][gw]
                 fixture_score += fixture["difficulty"] * factor
                 factor -= 2 if factor > 2 else 0
                 if (count := count + 1) >= 3:
