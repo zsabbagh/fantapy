@@ -197,13 +197,7 @@ class FPLQuerier:
                     if i >= len(other["fixtures"]):
                         break
                     if i not in team["fixtures"] or i not in other["fixtures"]:
-                        print(
-                            f"Error: GW mismatch {i} for {team['name']} vs {other['name']}"
-                        )
                         continue
-                    print(f"Checking GW{i} for {team['name']} vs {other['name']}")
-                    print(f"Team A: {team['fixtures'][i]}")
-                    print(f"Team B: {other['fixtures'][i]}")
                     tdiff = team["fixtures"][i]["difficulty"]
                     odiff = other["fixtures"][i]["difficulty"]
                     mindiff = min(tdiff, odiff)
