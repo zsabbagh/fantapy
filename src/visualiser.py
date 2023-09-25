@@ -24,6 +24,12 @@ class FPLVisualiser:
         st.header("Top Players")
         results = []
         teams_by_name = fpl.teams_by_name
+        selected_players = st.multiselect("Select players", fpl.player_names, [])
+        if len(selected_players) < 1:
+            selected_players = fpl.player_names
+        players = {
+            k: v for k, v in fpl.players_by_name.items() if k in selected_players
+        }
         columns = [
             "Name",
             "Team",
@@ -51,7 +57,7 @@ class FPLVisualiser:
             "Starts/Game",
         ]
         # TODO: Filter on easy fixtures
-        for player, info in fpl.players.items():
+        for player, info in players.items():
             team_games = info["team"]["games"]
             values = [
                 info["name"],
@@ -127,7 +133,7 @@ class FPLVisualiser:
             help="Measures how much of the team's goals a player is involved in",
         )
         col1, col2 = st.columns(2)
-        selected_minutes = col1.slider("Minimum min/game", 0, 90, step=5, value=80)
+        selected_minutes = col1.slider("Minimum min/game", 0, 90, step=5, value=0)
         selected_bonus = col2.slider("Minimum bonus chance", 0, 100, step=5)
         # st.write(f"Players matching criteria: {len(df)}")
         # df = df[df["Position"].isin(selected_pos)]
@@ -467,13 +473,12 @@ class FPLVisualiser:
         """
         st.header("Player KPI")
         cola, colb = st.columns(2)
-        players_sorted = sorted(fpl.players_by_name.keys(), key=lambda x: x[0])
-        player = cola.selectbox("Select a player", players_sorted, index=297)
+        player = cola.selectbox("Select a player", fpl.player_names, index=297)
         compare = cola.checkbox("Compare with player", value=False)
         player_comp = (
             cola.selectbox(
                 f"Select player to compare {player} with",
-                players_sorted,
+                fpl.player_names,
                 index=212,
             )
             if compare

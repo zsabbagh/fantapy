@@ -24,6 +24,9 @@ refresh = 0
 def main():
     # Initialize querier
     st.set_page_config(layout="wide")
+    # TODO: Pick GW limit of data!
+    # TODO: Pick your team and see how it performs
+    # TODO: Form should be a function of the last 5 GWs
     with st.sidebar:
         st.title("FantaPy!")
         (
@@ -34,6 +37,8 @@ def main():
             fpl.players,
             fpl.players_by_name,
         ) = FPLQuerier.run(refresh)
+        if len(fpl.player_names) < 1:
+            fpl.player_names = sorted(list(fpl.players_by_name.keys()))
         what_to_show = st.multiselect(
             "What to show?",
             [
