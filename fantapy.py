@@ -1,5 +1,6 @@
 import streamlit as st, pandas as pd
 import plotly.graph_objects as go
+import time
 from pprint import pprint
 from src.querier import FPLQuerier
 from src.data import FPLData
@@ -11,6 +12,7 @@ class GlobalState:
     def __init__(self):
         self.players = []
         self.player = "Haaland (MCI)"
+        self.last_refresh = time.time()
 
 
 state = GlobalState()

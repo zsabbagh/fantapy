@@ -343,13 +343,17 @@ class FPLVisualiser:
         gws, gis, xgis, pts, bpts = [], [], [], [], []
         comp_gis, comp_xgis, comp_pts, comp_bpts = [], [], [], []
         team = fpl.players_by_name[player]["team"]
+        team_fixtures = team.get("fixtures", {})
         comp_team = fpl.players_by_name.get(player_comp, {}).get("team", {})
+        comp_fixtures = comp_team.get("fixtures", {})
         for gw, info in history.items():
+            if gw not in team_fixtures:
+                continue
             gws.append(
                 f"GW{gw}, {team['fixtures'][gw]['code']}"
                 + (
                     f"/{comp_team['fixtures'][gw]['code']}"
-                    if player_comp is not None
+                    if gw in comp_fixtures
                     else ""
                 )
             )

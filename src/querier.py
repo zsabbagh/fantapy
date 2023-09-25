@@ -222,7 +222,7 @@ class FPLQuerier:
         return teams, teams_by_name
 
     @staticmethod
-    @st.cache_data
+    @st.cache_data(ttl=3600)
     def run(placeholder=0):
         """
         placeholder for streamlit caching
