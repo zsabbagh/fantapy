@@ -1,4 +1,5 @@
 import requests, streamlit as st
+from src.data import FPLData
 from pprint import pprint
 
 
@@ -7,6 +8,9 @@ class FPLQuerier:
     FPL_FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/"
     FPL_ENTRY_URL = "https://fantasy.premierleague.com/api/entry/"
     FPL_ENTRY_HISTORY_URL = "https://fantasy.premierleague.com/api/entry/{}/history/"
+    FPL_MANAGER_TEAM_URL = (
+        "https://fantasy.premierleague.com/api/entry/{}/event/{}/picks/"
+    )
     FPL_ELEMENT_SUMMARY_URL = (
         "https://fantasy.premierleague.com/api/element-summary/{}/"
     )
@@ -15,6 +19,22 @@ class FPLQuerier:
     teams = {}
     teams_by_name = {}
     data = {}
+
+    @staticmethod
+    @st.cache_data
+    def get_manager_data(manager_id: int, gw: int):
+        """
+        Get manager data from previous seasons
+        """
+        manager = requests.get(FPLQuerier.FPL_ENTRY_URL + str(manager_id)).json()
+        data = requests.get(
+            FPLQuerier.FPL_MANAGER_TEAM_URL.format(manager_id, gw)
+        ).json()
+        return {
+            "name": manager["name"],
+            "gw": gw,
+            "team": data.get("picks", {}),
+        }
 
     @staticmethod
     def get_team_difficulty(team_code: str):
@@ -45,15 +65,17 @@ class FPLQuerier:
             player["gi_per_goal_scored"] = (
                 float(player["goals_scored"] + player["assists"]) / team["goals_scored"]
             )
+            name = f"{player_name} ({team['code']})"
             for k, v in player.items():
-                if type(v) == str:
+                if type(v) == str and v != "":
                     try:
                         player[k] = round(float(v), 3)
                     except ValueError:
-                        player[k] = 0
+                        pass
             players[id] = {
                 "id": id,
                 "name": player_name,
+                "name_with_team": name,
                 "team": team,
                 "position": "GK"
                 if player["element_type"] == 1
@@ -64,7 +86,6 @@ class FPLQuerier:
                 ),
                 "stats": player,
             }
-            name = f"{player_name} ({team['code']})"
             players_by_name[name] = players[id]
         for gw in range(1, 39):
             data = requests.get(FPLQuerier.FPL_GW_LIVE_URL.format(gw)).json()
@@ -176,17 +197,18 @@ class FPLQuerier:
         # Generate fixture score
         for team in teams.values():
             count = fixture_score = 0
-            factor = 5
-            upcoming_three = sorted(
-                [i for i in team["fixtures"] if not team["fixtures"][i]["done"]][:3]
+            factor = [5, 3, 2, 1, 1]
+            upcoming = sorted(
+                [i for i in team["fixtures"] if not team["fixtures"][i]["done"]][:5]
             )
-            for gw in upcoming_three:
+            for gw in upcoming:
                 fixture = team["fixtures"][gw]
-                fixture_score += fixture["difficulty"] * factor
-                factor -= 2 if factor > 2 else 0
-                if (count := count + 1) >= 3:
+                fixture_score += fixture["difficulty"] * factor.pop(0)
+                if (count := count + 1) >= 5:
                     break
-            team["fixture_score"] = round(5 * fixture_score / float(25 + 15 + 5), 2)
+            team["fixture_score"] = round(
+                5 * fixture_score / (25 + 15.0 + 5 + 8), 2
+            )  # 38 is the max difficulty
             for other in teams.values():
                 if other["id"] in team["matchups"]:
                     continue
@@ -216,8 +238,7 @@ class FPLQuerier:
         return teams, teams_by_name
 
     @staticmethod
-    @st.cache_data(ttl=3600)
-    def run(placeholder=0):
+    def run():
         """
         placeholder for streamlit caching
         """

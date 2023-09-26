@@ -5,3 +5,4 @@ class FPLData:
         ) = self.players = self.teams = self.teams_by_name = None
         self.curr_gw = 0
         self.player_names = []
+        self.manager_team = []

@@ -1,4 +1,5 @@
 import streamlit as st, pandas as pd
+from src.querier import FPLQuerier
 from src.data import FPLData
 import plotly.graph_objects as go
 
@@ -22,9 +23,22 @@ class FPLVisualiser:
         Generate table of top players
         """
         st.header("Top Players")
+        default_players = (
+            [
+                fpl.players.get(int(x["element"]), {}).get("name_with_team", None)
+                for x in fpl.manager_team.get("team", [])
+            ]
+            if fpl.manager_team is not None
+            and st.checkbox(
+                f"Show team '{fpl.manager_team['name']}' for GW{fpl.manager_team['gw']}"
+            )
+            else []
+        )
         results = []
         teams_by_name = fpl.teams_by_name
-        selected_players = st.multiselect("Select players", fpl.player_names, [])
+        selected_players = st.multiselect(
+            "Select players", fpl.player_names, default_players
+        )
         if len(selected_players) < 1:
             selected_players = fpl.player_names
         players = {
@@ -55,6 +69,7 @@ class FPLVisualiser:
             "Form",
             "Form/Cost",
             "Starts/Game",
+            "News",
         ]
         # TODO: Filter on easy fixtures
         for player, info in players.items():
@@ -84,6 +99,7 @@ class FPLVisualiser:
                 float(info["stats"]["points_per_game"]),  # form
                 float(info["stats"]["form_per_cost"]),  # form
                 float(info["stats"]["starts_per_game"]),
+                info["stats"]["news"],
             ]
             results.append(values)
         st.write(f"Total players: {len(results)}")
