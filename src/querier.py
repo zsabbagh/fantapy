@@ -21,7 +21,7 @@ class FPLQuerier:
     data = {}
 
     @staticmethod
-    @st.cache_data
+    @st.cache_data(ttl=3600)
     def get_manager_data(manager_id: int, gw: int):
         """
         Get manager data from previous seasons
@@ -238,6 +238,7 @@ class FPLQuerier:
         return teams, teams_by_name
 
     @staticmethod
+    @st.cache_data(ttl=3600)
     def run():
         """
         placeholder for streamlit caching
