@@ -22,7 +22,6 @@ def main():
     # TODO: Form should be a function of 2- GWs,
     # add this to each player
     refresh = st.button("Refresh data")
-    print(f"State: {st.session_state['last_refresh']}")
     manager_id = None
     with st.sidebar:
         st.title("FantaPy!")
@@ -39,7 +38,6 @@ def main():
                 fpl.players_by_name,
             ) = FPLQuerier.run()
             st.write("Data refreshed!")
-            print(f"State: {st.session_state['last_refresh']}")
         else:
             st.write("Using cached data")
         if len(fpl.player_names) < 1:

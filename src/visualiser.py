@@ -47,11 +47,13 @@ class FPLVisualiser:
         columns = [
             "Name",
             "Team",
+            "Points",
+            "Selected By",
+            "Differential",
             "Team Clean Sheets",
             "Fixture Score",
             "Position",
             "Price",
-            "Points",
             "Bonus/Game",
             "Bonus %",
             "Goals",
@@ -74,14 +76,19 @@ class FPLVisualiser:
         # TODO: Filter on easy fixtures
         for player, info in players.items():
             team_games = info["team"]["games"]
+            selected_by = float(info["stats"]["selected_by_percent"])
+            total_pts = info["stats"]["total_points"]
+            differential = total_pts * (1 - (selected_by / 100.0))
             values = [
                 info["name"],
                 info["team"]["name"],
+                total_pts,
+                f"{selected_by} %",
+                differential,
                 info["team"]["clean_sheets"],
                 float(info["team"]["fixture_score"]),
                 info["position"],
                 round(info["stats"]["now_cost"] / 10.0, 2),
-                info["stats"]["total_points"],
                 round(float(info["stats"]["bonus_per_game"]), 2),
                 int(100 * info["stats"]["bonus_chance"]),
                 info["stats"]["goals_scored"],
