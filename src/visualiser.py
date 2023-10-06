@@ -39,13 +39,10 @@ class FPLVisualiser:
         selected_players = st.multiselect(
             "Select players", fpl.player_names, default_players
         )
-        compare = st.checkbox("Compare with players", value=False)
-        compare_players = (
-            st.multiselect(
-                "Select players to compare with", fpl.player_names, selected_players
-            )
-            if compare
-            else []
+        compare_players = st.multiselect(
+            "Select players to compare with",
+            fpl.player_names,
+            [],
         )
         if len(selected_players) < 1:
             selected_players = fpl.player_names
@@ -58,6 +55,7 @@ class FPLVisualiser:
             "Minutes/Game",
             "xPoints",
             "xPoints/Cost",
+            "BPS",
             "Selected By",
             "Differential",
             "Team Clean Sheets",
@@ -108,6 +106,7 @@ class FPLVisualiser:
                 minutes_per_game,
                 xpoints,
                 xpoints / cost,
+                info["stats"]["bps"],
                 selected_by,
                 differential,
                 info["team"]["clean_sheets"],
@@ -134,8 +133,9 @@ class FPLVisualiser:
             ]
             results.append(values)
         st.write(f"Total players: {len(results)}")
-        if compare:
+        if selected_players:
             st.write(f"Total xPoints: {total_xpoints:.2f}")
+        if compare_players:
             st.write(f"Total xPoints comp: {total_xpoints_comp:.2f}")
         df = pd.DataFrame(results, columns=columns).sort_values(
             by=["Name"], ascending=True
