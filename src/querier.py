@@ -145,6 +145,7 @@ class FPLQuerier:
         for team in data.get("teams", []):
             teams[team["id"]] = {
                 "id": team["id"],
+                "info": team,
                 "name": team["name"],
                 "strength": FPLQuerier.get_team_difficulty(team["short_name"]),
                 "code": team["short_name"],
@@ -154,6 +155,12 @@ class FPLQuerier:
                 "games": 0,
                 "clean_sheets": 0,
                 "matchups": {},
+                "strength_home": team["strength_overall_home"] - 1000,
+                "strength_away": team["strength_overall_away"] - 1000,
+                "strength_attack_home": team["strength_attack_home"] - 1000,
+                "strength_attack_away": team["strength_attack_away"] - 1000,
+                "strength_defence_home": team["strength_defence_home"] - 1000,
+                "strength_defence_away": team["strength_defence_away"] - 1000,
             }
             teams_by_name[team["name"]] = teams[team["id"]]
         fixtures = requests.get(FPLQuerier.FPL_FIXTURES_URL).json()

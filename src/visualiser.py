@@ -39,15 +39,25 @@ class FPLVisualiser:
         selected_players = st.multiselect(
             "Select players", fpl.player_names, default_players
         )
+        compare = st.checkbox("Compare with players", value=False)
+        compare_players = (
+            st.multiselect(
+                "Select players to compare with", fpl.player_names, selected_players
+            )
+            if compare
+            else []
+        )
         if len(selected_players) < 1:
             selected_players = fpl.player_names
-        players = {
-            k: v for k, v in fpl.players_by_name.items() if k in selected_players
-        }
+        all_players = selected_players + compare_players
+        players = {k: v for k, v in fpl.players_by_name.items() if k in all_players}
         columns = [
             "Name",
             "Team",
             "Points",
+            "Minutes/Game",
+            "xPoints",
+            "xPoints/Cost",
             "Selected By",
             "Differential",
             "Team Clean Sheets",
@@ -66,7 +76,6 @@ class FPLVisualiser:
             "Team GI %",
             "ICT",
             "Minutes",
-            "Minutes/Game",
             "Minutes/xGI",
             "Form",
             "Form/Cost",
@@ -74,21 +83,37 @@ class FPLVisualiser:
             "News",
         ]
         # TODO: Filter on easy fixtures
+        total_xpoints = 0.0
+        total_xpoints_comp = 0.0
         for player, info in players.items():
-            team_games = info["team"]["games"]
             selected_by = float(info["stats"]["selected_by_percent"])
             total_pts = info["stats"]["total_points"]
             differential = total_pts * (1 - (selected_by / 100.0))
+            cost = round(info["stats"]["now_cost"] / 10.0, 3)
+            points_per_min = (
+                total_pts / info["stats"]["minutes"]
+                if info["stats"]["minutes"] > 0
+                else 0
+            )
+            minutes_per_game = round(float(info["stats"]["minutes_per_game"]), 3)
+            xpoints = points_per_min * 38 * minutes_per_game
+            if player in selected_players:
+                total_xpoints += xpoints
+            if player in compare_players:
+                total_xpoints_comp += xpoints
             values = [
                 info["name"],
                 info["team"]["name"],
                 total_pts,
-                f"{selected_by} %",
+                minutes_per_game,
+                xpoints,
+                xpoints / cost,
+                selected_by,
                 differential,
                 info["team"]["clean_sheets"],
                 float(info["team"]["fixture_score"]),
                 info["position"],
-                round(info["stats"]["now_cost"] / 10.0, 2),
+                cost,
                 round(float(info["stats"]["bonus_per_game"]), 2),
                 int(100 * info["stats"]["bonus_chance"]),
                 info["stats"]["goals_scored"],
@@ -101,7 +126,6 @@ class FPLVisualiser:
                 round(100 * info["stats"]["gi_per_goal_scored"], 1),
                 round(float(info["stats"]["ict_index"]), 2),
                 info["stats"]["minutes"],
-                float(info["stats"]["minutes_per_game"]),
                 round(float(info["stats"]["minutes_per_xgi"]), 2),
                 float(info["stats"]["points_per_game"]),  # form
                 float(info["stats"]["form_per_cost"]),  # form
@@ -110,6 +134,9 @@ class FPLVisualiser:
             ]
             results.append(values)
         st.write(f"Total players: {len(results)}")
+        if compare:
+            st.write(f"Total xPoints: {total_xpoints:.2f}")
+            st.write(f"Total xPoints comp: {total_xpoints_comp:.2f}")
         df = pd.DataFrame(results, columns=columns).sort_values(
             by=["Name"], ascending=True
         )
@@ -458,6 +485,8 @@ class FPLVisualiser:
         st.write(f"Matchups for {team}")
         columns = [
             "Name",
+            "Strength Home",
+            "Strength Away",
             "Fixture Score",
             "Matchup Score",
             "Goals Scored",
@@ -474,6 +503,8 @@ class FPLVisualiser:
             results.append(
                 [
                     other,
+                    teams_by_name[other]["strength_home"],
+                    teams_by_name[other]["strength_away"],
                     fpl.teams_by_name[other]["fixture_score"],
                     matchup["score"],
                     teams_by_name[other]["goals_scored"],
