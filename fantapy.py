@@ -21,11 +21,10 @@ def main():
     # TODO: Pick your team and see how it performs
     # TODO: Form should be a function of 2- GWs,
     # add this to each player
-    refresh = st.button("Refresh data")
-    manager_id = None
+    st.title("⚽️ FantaPy ⚽️")
+    manager_id = st.text_input("Manager ID", "3177770")
     with st.sidebar:
         st.title("FantaPy!")
-        manager_id = st.text_input("Manager ID", "3177770")
         if st.session_state["last_refresh"] is None or (
             (time.time() - st.session_state["last_refresh"]) > 3600 and refresh
         ):

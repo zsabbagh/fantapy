@@ -479,46 +479,61 @@ class FPLVisualiser:
         Generate table of teams
         """
         st.header("Teams")
-        team = st.selectbox(
-            "Select a team", sorted(list(fpl.teams_by_name.keys())), index=0
+        fill_teams = st.checkbox("Autofill selected teams")
+        default_teams = []
+        if fill_teams:
+            default_teams = [
+                fpl.players.get(x["element"], {})
+                .get("team", {})
+                .get("info", {})
+                .get("name", None)
+                for x in fpl.manager_team.get("team", [])
+            ]
+            default_teams = list(set((filter(lambda x: x is not None, default_teams))))
+        selected_teams = st.multiselect(
+            "Select a team", sorted(list(fpl.teams_by_name.keys())), default_teams
         )
-        st.write(f"Matchups for {team}")
+        gws = dict([(i + 1, None) for i in range(38)])
         columns = [
             "Name",
             "Strength Home",
             "Strength Away",
             "Fixture Score",
-            "Matchup Score",
             "Goals Scored",
             "Goals Conceded",
-            "Diff. 1",
-            "Diff. 2",
-            "Diff. 3",
-            "Diff. 4",
-            "Diff. 5",
         ]
         results = []
         teams_by_name = fpl.teams_by_name
-        for other, matchup in fpl.teams_by_name[team].get("matchups", {}).items():
+        for t1, info in teams_by_name.items():
             results.append(
                 [
-                    other,
-                    teams_by_name[other]["strength_home"],
-                    teams_by_name[other]["strength_away"],
-                    fpl.teams_by_name[other]["fixture_score"],
-                    matchup["score"],
-                    teams_by_name[other]["goals_scored"],
-                    teams_by_name[other]["goals_conceded"],
-                    matchup["overlapping"][1],
-                    matchup["overlapping"][2],
-                    matchup["overlapping"][3],
-                    matchup["overlapping"][4],
-                    matchup["overlapping"][5],
+                    t1,
+                    info["strength_home"],
+                    info["strength_away"],
+                    info["fixture_score"],
+                    info["goals_scored"],
+                    info["goals_conceded"],
                 ]
             )
-        df = pd.DataFrame(results, columns=columns).sort_values(
-            by=["Matchup Score"], ascending=False
+            if t1 in selected_teams:
+                for gw, gw_info in info["fixtures"].items():
+                    if gw_info["done"] is True:
+                        continue
+                    diff = gw_info["difficulty"]
+                    if gws[gw] is None:
+                        gws[gw] = 0
+                    gws[gw] += diff
+        gws = sorted(
+            list(filter(lambda x: x[1] is not None, gws.items())), key=lambda x: x[1]
         )
+        df = pd.DataFrame(results, columns=columns).sort_values(
+            by=["Name"], ascending=False
+        )
+        if len(gws) > 0:
+            st.write("Best Bench Boost")
+            cols = st.columns(len(gws) if len(gws) < 5 else 5)
+            for i in range(len(cols)):
+                cols[i].metric("GW" + str(gws[i][0]), gws[i][1])
         st.dataframe(df, width=1500, height=500)
 
     def player_section(fpl: FPLData):
