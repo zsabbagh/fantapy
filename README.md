@@ -1,2 +1,2 @@
 # fpyl
-FPyL is Fantasy Premier League API.
+FPyL uses Fantasy Premier League API to present data using `streamlit`.
